@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/durianpay/fullstack-boilerplate/internal/config"
+	"github.com/durianpay/fullstack-boilerplate/internal/middleware"
+	authUsecase "github.com/durianpay/fullstack-boilerplate/internal/module/auth/usecase"
 	"github.com/durianpay/fullstack-boilerplate/internal/openapigen"
 	"github.com/getkin/kin-openapi/openapi3filter"
 	"github.com/go-chi/chi/v5"
@@ -28,7 +30,11 @@ const (
 	idleTimeout  = 60 * time.Second
 )
 
-func NewServer(apiHandler openapigen.ServerInterface, _ string) *Server {
+var publicAPIPaths = map[string]bool{
+	"/dashboard/v1/auth/login": true,
+}
+
+func NewServer(apiHandler openapigen.ServerInterface, authUC authUsecase.AuthUsecase, _ string) *Server {
 	swagger, err := openapigen.GetSwagger()
 	if err != nil {
 		log.Fatalf("failed to load swagger: %v", err)
@@ -69,10 +75,25 @@ func NewServer(apiHandler openapigen.ServerInterface, _ string) *Server {
 				},
 			},
 		))
+		api.Use(conditionalAuth(authUC))
 		openapigen.HandlerFromMux(apiHandler, api)
 	})
 
 	return &Server{router: r}
+}
+
+func conditionalAuth(uc authUsecase.AuthUsecase) func(http.Handler) http.Handler {
+	auth := middleware.Auth(uc)
+	return func(next http.Handler) http.Handler {
+		protected := auth(next)
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if publicAPIPaths[r.URL.Path] {
+				next.ServeHTTP(w, r)
+				return
+			}
+			protected.ServeHTTP(w, r)
+		})
+	}
 }
 
 func (s *Server) Start(addr string) {

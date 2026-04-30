@@ -1,6 +1,3 @@
-// 	Usage:
-//	make seed         # run migrations and seed (no-op if already seeded)
-//	make seed-reset   # delete the sqlite db and re-seed from scratch
 package main
 
 import (

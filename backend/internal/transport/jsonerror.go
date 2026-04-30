@@ -9,14 +9,12 @@ import (
 	"github.com/durianpay/fullstack-boilerplate/internal/entity"
 )
 
-// errorBody mirrors the OpenAPI ErrorResponse schema.
 type errorBody struct {
 	Code    int    `json:"code"`
 	Message string `json:"message"`
 	Details any    `json:"details,omitempty"`
 }
 
-// codeToStatus maps a domain Code to an HTTP status code.
 func codeToStatus(code entity.Code) int {
 	switch code {
 	case entity.ErrorCodeBadRequest:
@@ -34,7 +32,6 @@ func codeToStatus(code entity.Code) int {
 	}
 }
 
-// WriteJSON writes a JSON response with the given HTTP status.
 func WriteJSON(w http.ResponseWriter, status int, body any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
@@ -46,7 +43,6 @@ func WriteJSON(w http.ResponseWriter, status int, body any) {
 	}
 }
 
-// WriteAppError writes an AppError as JSON with mapped HTTP status.
 func WriteAppError(w http.ResponseWriter, appErr *entity.AppError) {
 	status := codeToStatus(appErr.Code)
 	WriteJSON(w, status, errorBody{
@@ -56,7 +52,6 @@ func WriteAppError(w http.ResponseWriter, appErr *entity.AppError) {
 	})
 }
 
-// WriteError handles any error, mapping domain errors and falling back to 500.
 func WriteError(w http.ResponseWriter, err error) {
 	if err == nil {
 		return

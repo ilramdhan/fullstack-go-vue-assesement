@@ -2,7 +2,6 @@ package entity
 
 import "fmt"
 
-// Code is a domain-level error code; HTTP mapping lives in transport.
 type Code string
 
 const (
@@ -41,7 +40,6 @@ func WrapError(err error, code Code, message string) *AppError {
 	return &AppError{Code: code, Message: message, Err: err}
 }
 
-// Convenience constructors.
 func ErrorBadRequest(msg string) *AppError   { return NewError(ErrorCodeBadRequest, msg) }
 func ErrorUnauthorized(msg string) *AppError { return NewError(ErrorCodeUnauthorized, msg) }
 func ErrorForbidden(msg string) *AppError    { return NewError(ErrorCodeForbidden, msg) }
