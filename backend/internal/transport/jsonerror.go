@@ -3,45 +3,62 @@ package transport
 import (
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 
 	"github.com/durianpay/fullstack-boilerplate/internal/entity"
 )
 
-type ErrorResponse struct {
-	Code    string      `json:"code"` // or int depending on your openapi
-	Message string      `json:"message"`
-	Details interface{} `json:"details,omitempty"`
+// errorBody mirrors the OpenAPI ErrorResponse schema.
+type errorBody struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+	Details any    `json:"details,omitempty"`
 }
 
-func CodeToStatus(code entity.Code) int {
+// codeToStatus maps a domain Code to an HTTP status code.
+func codeToStatus(code entity.Code) int {
 	switch code {
 	case entity.ErrorCodeBadRequest:
 		return http.StatusBadRequest
+	case entity.ErrorCodeUnauthorized:
+		return http.StatusUnauthorized
+	case entity.ErrorCodeForbidden:
+		return http.StatusForbidden
+	case entity.ErrorCodeNotFound:
+		return http.StatusNotFound
+	case entity.ErrorCodeConflict:
+		return http.StatusConflict
 	default:
 		return http.StatusInternalServerError
 	}
 }
 
-func WriteAppError(w http.ResponseWriter, appErr *entity.AppError) {
-	status := CodeToStatus(appErr.Code)
+// WriteJSON writes a JSON response with the given HTTP status.
+func WriteJSON(w http.ResponseWriter, status int, body any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	resp := ErrorResponse{
-		Code:    string(appErr.Code),
-		Message: appErr.Message,
-		Details: appErr.Details,
-	}
-	err := json.NewEncoder(w).Encode(resp)
-	if err != nil {
-		http.Error(w, "internal server error", http.StatusInternalServerError)
+	if body == nil {
 		return
+	}
+	if err := json.NewEncoder(w).Encode(body); err != nil {
+		log.Printf("transport: encode response: %v", err)
 	}
 }
 
+// WriteAppError writes an AppError as JSON with mapped HTTP status.
+func WriteAppError(w http.ResponseWriter, appErr *entity.AppError) {
+	status := codeToStatus(appErr.Code)
+	WriteJSON(w, status, errorBody{
+		Code:    status,
+		Message: appErr.Message,
+		Details: appErr.Details,
+	})
+}
+
+// WriteError handles any error, mapping domain errors and falling back to 500.
 func WriteError(w http.ResponseWriter, err error) {
 	if err == nil {
-		w.WriteHeader(http.StatusOK)
 		return
 	}
 	var aErr *entity.AppError
@@ -49,15 +66,9 @@ func WriteError(w http.ResponseWriter, err error) {
 		WriteAppError(w, aErr)
 		return
 	}
-	// fallback
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusInternalServerError)
-	err = json.NewEncoder(w).Encode(ErrorResponse{
-		Code:    string(entity.ErrorCodeInternal),
-		Message: "internal error",
+	log.Printf("transport: unexpected error: %v", err)
+	WriteJSON(w, http.StatusInternalServerError, errorBody{
+		Code:    http.StatusInternalServerError,
+		Message: "internal server error",
 	})
-	if err != nil {
-		http.Error(w, "internal server error", http.StatusInternalServerError)
-		return
-	}
 }

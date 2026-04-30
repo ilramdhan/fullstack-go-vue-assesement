@@ -1,145 +1,374 @@
 openapi: 3.0.3
+
 info:
-  title: MyGoLangApp API
+  title: Payment Dashboard API
   version: "1.0.0"
+  description: |
+    Internal dashboard API for monitoring and reviewing incoming payments.
+
+    Two roles:
+    - `cs`: read-only access to payments and summary.
+    - `operation`: same as `cs` plus the ability to approve/reject payments
+      that are still in `processing` state.
+
+    All `/dashboard/*` endpoints (except login) require a Bearer JWT issued
+    by `POST /dashboard/v1/auth/login`.
+
 servers:
   - url: http://localhost:8080
+    description: Local backend (make run / docker compose)
+
+tags:
+  - name: Auth
+    description: Authentication
+  - name: Payments
+    description: Payment monitoring and review
+
 components:
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
-  
+
   parameters:
-    sort:
+    PaymentId:
+      name: id
+      in: path
+      required: true
+      description: Payment ID (uuid).
+      schema:
+        type: string
+        example: "8f1d5b2c-2f6e-4d3b-9a0a-1b6f3a90c1e2"
+    StatusFilter:
+      name: status
+      in: query
+      required: false
+      description: Filter by payment status.
+      schema:
+        type: string
+        enum: [completed, processing, failed]
+    SortParam:
       name: sort
       in: query
-      description: >
-        Comma-separated sort fields. Common patterns:
-        `-created_at` (prefix `-` = desc)
-        `amount` (no prefix `-` = asc)
       required: false
+      description: |
+        Sort field. Prefix `-` for desc.
+        Allowed: `created_at`, `-created_at`, `amount`, `-amount`.
       schema:
         type: string
         example: "-created_at"
+    IdSearch:
+      name: id
+      in: query
+      required: false
+      description: Filter by exact payment ID.
+      schema:
+        type: string
+    Limit:
+      name: limit
+      in: query
+      required: false
+      description: Page size (1..100).
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 100
+    Offset:
+      name: offset
+      in: query
+      required: false
+      description: Page offset (>=0).
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
 
   schemas:
-    Error:
+    ErrorResponse:
       type: object
+      required: [code, message]
       properties:
         code:
           type: integer
+          description: HTTP-aligned numeric error code.
           example: 401
         message:
           type: string
-          example: "Unauthenticated: missing or invalid token"
-      required:
-        - code
-        - message
-    
-    User:
+          example: "unauthorized: missing or invalid token"
+        details:
+          type: object
+          additionalProperties: true
+          description: Optional structured details (validation errors, etc.).
+
+    LoginRequest:
       type: object
+      required: [email, password]
       properties:
         email:
           type: string
+          format: email
+          example: "operation@test.com"
+        password:
+          type: string
+          format: password
+          minLength: 1
+          example: "password"
+
+    User:
+      type: object
+      required: [email, role]
+      properties:
+        email:
+          type: string
+          format: email
         role:
           type: string
+          enum: [cs, operation]
+
+    LoginResponse:
+      type: object
+      required: [token, user]
+      properties:
         token:
           type: string
+          description: "JWT bearer token. Send as `Authorization: Bearer TOKEN`."
+        user:
+          $ref: '#/components/schemas/User'
+
+    PaymentStatus:
+      type: string
+      enum: [completed, processing, failed]
 
     Payment:
       type: object
+      required: [id, merchant, amount, currency, status, created_at]
       properties:
         id:
           type: string
-          example: "1"
+          example: "8f1d5b2c-2f6e-4d3b-9a0a-1b6f3a90c1e2"
         merchant:
           type: string
-          example: "Merchant A"
-        status:
-          type: string
-          example: "completed , processing , or failed"
+          example: "Tokopedia"
         amount:
+          type: integer
+          format: int64
+          description: Amount in minor currency units (e.g. IDR sen).
+          example: 1500000
+        currency:
           type: string
-          example: "alice@example.com"
+          example: "IDR"
+        status:
+          $ref: '#/components/schemas/PaymentStatus'
         created_at:
           type: string
           format: date-time
+        reviewed_by:
+          type: string
+          nullable: true
+          description: Email of the operation user who last reviewed this payment.
+        reviewed_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    PaymentList:
+      type: object
+      required: [data, total]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Payment'
+        total:
+          type: integer
+          description: Total matching rows (across all pages).
+          example: 50
+
+    PaymentSummary:
+      type: object
+      required: [total, completed, processing, failed]
+      properties:
+        total:
+          type: integer
+          example: 50
+        completed:
+          type: integer
+          example: 40
+        processing:
+          type: integer
+          example: 5
+        failed:
+          type: integer
+          example: 5
+
+    ReviewDecision:
+      type: string
+      enum: [approve, reject]
+
+    ReviewRequest:
+      type: object
+      required: [decision]
+      properties:
+        decision:
+          $ref: '#/components/schemas/ReviewDecision'
+        note:
+          type: string
+          maxLength: 500
+          description: Optional note recorded with the review.
 
   responses:
-    LoginResponse:
-      description: return token and user information
+    BadRequest:
+      description: Request payload or query parameters failed validation.
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/User'
-    PaymentListResponse:
-      description: Payment List
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Missing or invalid bearer token.
       content:
         application/json:
           schema:
-            type: object
-            properties:
-              payments:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Payment'
-    UnauthorizedError:
-      description: Authentication failed or missing credentials
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: Authenticated but role does not have access.
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/Error'
-          examples:
-            unauthenticated:
-              summary: Missing or invalid token
-              value:
-                code: 401
-                message: "Unauthenticated: missing or invalid token"
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Resource not found.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Conflict:
+      description: Resource is not in a state that allows this operation.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    InternalError:
+      description: Unexpected server error.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
 
 paths:
   /dashboard/v1/auth/login:
     post:
+      tags: [Auth]
+      operationId: loginUser
+      security: []
       summary: Login with email + password
+      description: Returns a JWT and the authenticated user. Public endpoint.
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [email, password]
-              properties:
-                email:
-                  type: string
-                password:
-                  type: string
+              $ref: '#/components/schemas/LoginRequest'
       responses:
         "200":
-          $ref: '#/components/responses/LoginResponse'
+          description: Login successful.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        "400":
+          $ref: '#/components/responses/BadRequest'
         "401":
-          $ref: '#/components/responses/UnauthorizedError'
+          $ref: '#/components/responses/Unauthorized'
+        "500":
+          $ref: '#/components/responses/InternalError'
 
   /dashboard/v1/payments:
     get:
-      summary: List of payments
+      tags: [Payments]
+      operationId: listPayments
+      summary: List payments
+      description: |
+        Returns paginated payments. Supports filter by `status`, exact-match
+        search by `id`, and sort by `created_at` or `amount`.
+      security:
+        - bearerAuth: []
       parameters:
-        - $ref: '#/components/parameters/sort'
-        - in: query
-          name: status
-          schema:
-            type: string
-          description: status of payment (completed , processing , or failed)
-        - in: query
-          name: id
-          schema:
-            type: string
-          description: payment id
+        - $ref: '#/components/parameters/StatusFilter'
+        - $ref: '#/components/parameters/IdSearch'
+        - $ref: '#/components/parameters/SortParam'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Offset'
+      responses:
+        "200":
+          description: List of payments.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentList'
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "500":
+          $ref: '#/components/responses/InternalError'
+
+  /dashboard/v1/payments/summary:
+    get:
+      tags: [Payments]
+      operationId: getPaymentSummary
+      summary: Payment summary (totals by status)
+      description: Aggregated counts powering the dashboard summary widget.
       security:
         - bearerAuth: []
       responses:
         "200":
-          $ref: '#/components/responses/PaymentListResponse'
+          description: Aggregated counts.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentSummary'
         "401":
-          $ref: '#/components/responses/UnauthorizedError'
+          $ref: '#/components/responses/Unauthorized'
+        "500":
+          $ref: '#/components/responses/InternalError'
 
+  /dashboard/v1/payments/{id}/review:
+    put:
+      tags: [Payments]
+      operationId: reviewPayment
+      summary: Review a payment (approve/reject)
+      description: |
+        Transitions a payment from `processing` to either `completed`
+        (on approve) or `failed` (on reject). Requires role `operation`.
+        Reviewing a payment that is no longer in `processing` returns 409.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PaymentId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReviewRequest'
+      responses:
+        "200":
+          description: Review applied. Returns the updated payment.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "500":
+          $ref: '#/components/responses/InternalError'

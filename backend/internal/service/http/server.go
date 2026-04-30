@@ -11,6 +11,7 @@ import (
 
 	"github.com/durianpay/fullstack-boilerplate/internal/config"
 	"github.com/durianpay/fullstack-boilerplate/internal/openapigen"
+	"github.com/getkin/kin-openapi/openapi3filter"
 	"github.com/go-chi/chi/v5"
 	chimw "github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
@@ -61,6 +62,11 @@ func NewServer(apiHandler openapigen.ServerInterface, _ string) *Server {
 			&oapinethttpmw.Options{
 				DoNotValidateServers:  true,
 				SilenceServersWarning: true,
+				Options: openapi3filter.Options{
+					AuthenticationFunc: func(_ context.Context, _ *openapi3filter.AuthenticationInput) error {
+						return nil
+					},
+				},
 			},
 		))
 		openapigen.HandlerFromMux(apiHandler, api)

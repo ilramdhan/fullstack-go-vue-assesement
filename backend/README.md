@@ -82,7 +82,7 @@ Seeded users (auto-created on first boot):
 ## API endpoints (current)
 
 - `GET  /healthz` — liveness probe.
-- `POST /dashboard/v1/auth/login` — email + password → JWT + role.
-- `GET  /dashboard/v1/payments` — list payments (auth required). _Implemented in Phase 3._
-- `GET  /dashboard/v1/payments/summary` — aggregate totals. _Implemented in Phase 3._
-- `PUT  /dashboard/v1/payments/{id}/review` — approve/reject (role `operation`). _Implemented in Phase 3._
+- `POST /dashboard/v1/auth/login` — email + password → JWT + user (email, role).
+- `GET  /dashboard/v1/payments` — list payments (auth required). Supports `status`, `id`, `sort`, `limit`, `offset` query parameters.
+- `GET  /dashboard/v1/payments/summary` — aggregate counts powering the dashboard summary widget.
+- `PUT  /dashboard/v1/payments/{id}/review` — approve/reject a `processing` payment. Requires role `operation`.

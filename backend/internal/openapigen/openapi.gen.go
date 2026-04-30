@@ -18,77 +18,201 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/go-chi/chi/v5"
 	"github.com/oapi-codegen/runtime"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 const (
 	BearerAuthScopes = "bearerAuth.Scopes"
 )
 
-// Error defines model for Error.
-type Error struct {
-	Code    int    `json:"code"`
-	Message string `json:"message"`
+// Defines values for PaymentStatus.
+const (
+	PaymentStatusCompleted  PaymentStatus = "completed"
+	PaymentStatusFailed     PaymentStatus = "failed"
+	PaymentStatusProcessing PaymentStatus = "processing"
+)
+
+// Defines values for ReviewDecision.
+const (
+	Approve ReviewDecision = "approve"
+	Reject  ReviewDecision = "reject"
+)
+
+// Defines values for UserRole.
+const (
+	Cs        UserRole = "cs"
+	Operation UserRole = "operation"
+)
+
+// Defines values for StatusFilter.
+const (
+	StatusFilterCompleted  StatusFilter = "completed"
+	StatusFilterFailed     StatusFilter = "failed"
+	StatusFilterProcessing StatusFilter = "processing"
+)
+
+// Defines values for ListPaymentsParamsStatus.
+const (
+	Completed  ListPaymentsParamsStatus = "completed"
+	Failed     ListPaymentsParamsStatus = "failed"
+	Processing ListPaymentsParamsStatus = "processing"
+)
+
+// ErrorResponse defines model for ErrorResponse.
+type ErrorResponse struct {
+	// Code HTTP-aligned numeric error code.
+	Code int `json:"code"`
+
+	// Details Optional structured details (validation errors, etc.).
+	Details *map[string]interface{} `json:"details,omitempty"`
+	Message string                  `json:"message"`
+}
+
+// LoginRequest defines model for LoginRequest.
+type LoginRequest struct {
+	Email    openapi_types.Email `json:"email"`
+	Password string              `json:"password"`
+}
+
+// LoginResponse defines model for LoginResponse.
+type LoginResponse struct {
+	// Token JWT bearer token. Send as `Authorization: Bearer TOKEN`.
+	Token string `json:"token"`
+	User  User   `json:"user"`
 }
 
 // Payment defines model for Payment.
 type Payment struct {
-	Amount    *string    `json:"amount,omitempty"`
-	CreatedAt *time.Time `json:"created_at,omitempty"`
-	Id        *string    `json:"id,omitempty"`
-	Merchant  *string    `json:"merchant,omitempty"`
-	Status    *string    `json:"status,omitempty"`
+	// Amount Amount in minor currency units (e.g. IDR sen).
+	Amount     int64      `json:"amount"`
+	CreatedAt  time.Time  `json:"created_at"`
+	Currency   string     `json:"currency"`
+	Id         string     `json:"id"`
+	Merchant   string     `json:"merchant"`
+	ReviewedAt *time.Time `json:"reviewed_at"`
+
+	// ReviewedBy Email of the operation user who last reviewed this payment.
+	ReviewedBy *string       `json:"reviewed_by"`
+	Status     PaymentStatus `json:"status"`
+}
+
+// PaymentList defines model for PaymentList.
+type PaymentList struct {
+	Data []Payment `json:"data"`
+
+	// Total Total matching rows (across all pages).
+	Total int `json:"total"`
+}
+
+// PaymentStatus defines model for PaymentStatus.
+type PaymentStatus string
+
+// PaymentSummary defines model for PaymentSummary.
+type PaymentSummary struct {
+	Completed  int `json:"completed"`
+	Failed     int `json:"failed"`
+	Processing int `json:"processing"`
+	Total      int `json:"total"`
+}
+
+// ReviewDecision defines model for ReviewDecision.
+type ReviewDecision string
+
+// ReviewRequest defines model for ReviewRequest.
+type ReviewRequest struct {
+	Decision ReviewDecision `json:"decision"`
+
+	// Note Optional note recorded with the review.
+	Note *string `json:"note,omitempty"`
 }
 
 // User defines model for User.
 type User struct {
-	Email *string `json:"email,omitempty"`
-	Role  *string `json:"role,omitempty"`
-	Token *string `json:"token,omitempty"`
+	Email openapi_types.Email `json:"email"`
+	Role  UserRole            `json:"role"`
 }
 
-// Sort defines model for sort.
-type Sort = string
+// UserRole defines model for User.Role.
+type UserRole string
 
-// LoginResponse defines model for LoginResponse.
-type LoginResponse = User
+// IdSearch defines model for IdSearch.
+type IdSearch = string
 
-// PaymentListResponse defines model for PaymentListResponse.
-type PaymentListResponse struct {
-	Payments *[]Payment `json:"payments,omitempty"`
+// Limit defines model for Limit.
+type Limit = int
+
+// Offset defines model for Offset.
+type Offset = int
+
+// PaymentId defines model for PaymentId.
+type PaymentId = string
+
+// SortParam defines model for SortParam.
+type SortParam = string
+
+// StatusFilter defines model for StatusFilter.
+type StatusFilter string
+
+// BadRequest defines model for BadRequest.
+type BadRequest = ErrorResponse
+
+// Conflict defines model for Conflict.
+type Conflict = ErrorResponse
+
+// Forbidden defines model for Forbidden.
+type Forbidden = ErrorResponse
+
+// InternalError defines model for InternalError.
+type InternalError = ErrorResponse
+
+// NotFound defines model for NotFound.
+type NotFound = ErrorResponse
+
+// Unauthorized defines model for Unauthorized.
+type Unauthorized = ErrorResponse
+
+// ListPaymentsParams defines parameters for ListPayments.
+type ListPaymentsParams struct {
+	// Status Filter by payment status.
+	Status *ListPaymentsParamsStatus `form:"status,omitempty" json:"status,omitempty"`
+
+	// Id Filter by exact payment ID.
+	Id *IdSearch `form:"id,omitempty" json:"id,omitempty"`
+
+	// Sort Sort field. Prefix `-` for desc.
+	// Allowed: `created_at`, `-created_at`, `amount`, `-amount`.
+	Sort *SortParam `form:"sort,omitempty" json:"sort,omitempty"`
+
+	// Limit Page size (1..100).
+	Limit *Limit `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Offset Page offset (>=0).
+	Offset *Offset `form:"offset,omitempty" json:"offset,omitempty"`
 }
 
-// UnauthorizedError defines model for UnauthorizedError.
-type UnauthorizedError = Error
+// ListPaymentsParamsStatus defines parameters for ListPayments.
+type ListPaymentsParamsStatus string
 
-// PostDashboardV1AuthLoginJSONBody defines parameters for PostDashboardV1AuthLogin.
-type PostDashboardV1AuthLoginJSONBody struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
-}
+// LoginUserJSONRequestBody defines body for LoginUser for application/json ContentType.
+type LoginUserJSONRequestBody = LoginRequest
 
-// GetDashboardV1PaymentsParams defines parameters for GetDashboardV1Payments.
-type GetDashboardV1PaymentsParams struct {
-	// Sort Comma-separated sort fields. Common patterns: `-created_at` (prefix `-` = desc) `amount` (no prefix `-` = asc)
-	Sort *Sort `form:"sort,omitempty" json:"sort,omitempty"`
-
-	// Status status of payment (completed , processing , or failed)
-	Status *string `form:"status,omitempty" json:"status,omitempty"`
-
-	// Id payment id
-	Id *string `form:"id,omitempty" json:"id,omitempty"`
-}
-
-// PostDashboardV1AuthLoginJSONRequestBody defines body for PostDashboardV1AuthLogin for application/json ContentType.
-type PostDashboardV1AuthLoginJSONRequestBody PostDashboardV1AuthLoginJSONBody
+// ReviewPaymentJSONRequestBody defines body for ReviewPayment for application/json ContentType.
+type ReviewPaymentJSONRequestBody = ReviewRequest
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 	// Login with email + password
 	// (POST /dashboard/v1/auth/login)
-	PostDashboardV1AuthLogin(w http.ResponseWriter, r *http.Request)
-	// List of payments
+	LoginUser(w http.ResponseWriter, r *http.Request)
+	// List payments
 	// (GET /dashboard/v1/payments)
-	GetDashboardV1Payments(w http.ResponseWriter, r *http.Request, params GetDashboardV1PaymentsParams)
+	ListPayments(w http.ResponseWriter, r *http.Request, params ListPaymentsParams)
+	// Payment summary (totals by status)
+	// (GET /dashboard/v1/payments/summary)
+	GetPaymentSummary(w http.ResponseWriter, r *http.Request)
+	// Review a payment (approve/reject)
+	// (PUT /dashboard/v1/payments/{id}/review)
+	ReviewPayment(w http.ResponseWriter, r *http.Request, id PaymentId)
 }
 
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
@@ -97,13 +221,25 @@ type Unimplemented struct{}
 
 // Login with email + password
 // (POST /dashboard/v1/auth/login)
-func (_ Unimplemented) PostDashboardV1AuthLogin(w http.ResponseWriter, r *http.Request) {
+func (_ Unimplemented) LoginUser(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
-// List of payments
+// List payments
 // (GET /dashboard/v1/payments)
-func (_ Unimplemented) GetDashboardV1Payments(w http.ResponseWriter, r *http.Request, params GetDashboardV1PaymentsParams) {
+func (_ Unimplemented) ListPayments(w http.ResponseWriter, r *http.Request, params ListPaymentsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Payment summary (totals by status)
+// (GET /dashboard/v1/payments/summary)
+func (_ Unimplemented) GetPaymentSummary(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Review a payment (approve/reject)
+// (PUT /dashboard/v1/payments/{id}/review)
+func (_ Unimplemented) ReviewPayment(w http.ResponseWriter, r *http.Request, id PaymentId) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -116,11 +252,11 @@ type ServerInterfaceWrapper struct {
 
 type MiddlewareFunc func(http.Handler) http.Handler
 
-// PostDashboardV1AuthLogin operation middleware
-func (siw *ServerInterfaceWrapper) PostDashboardV1AuthLogin(w http.ResponseWriter, r *http.Request) {
+// LoginUser operation middleware
+func (siw *ServerInterfaceWrapper) LoginUser(w http.ResponseWriter, r *http.Request) {
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.PostDashboardV1AuthLogin(w, r)
+		siw.Handler.LoginUser(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -130,8 +266,8 @@ func (siw *ServerInterfaceWrapper) PostDashboardV1AuthLogin(w http.ResponseWrite
 	handler.ServeHTTP(w, r)
 }
 
-// GetDashboardV1Payments operation middleware
-func (siw *ServerInterfaceWrapper) GetDashboardV1Payments(w http.ResponseWriter, r *http.Request) {
+// ListPayments operation middleware
+func (siw *ServerInterfaceWrapper) ListPayments(w http.ResponseWriter, r *http.Request) {
 
 	var err error
 
@@ -142,15 +278,7 @@ func (siw *ServerInterfaceWrapper) GetDashboardV1Payments(w http.ResponseWriter,
 	r = r.WithContext(ctx)
 
 	// Parameter object where we will unmarshal all parameters from the context
-	var params GetDashboardV1PaymentsParams
-
-	// ------------- Optional query parameter "sort" -------------
-
-	err = runtime.BindQueryParameter("form", true, false, "sort", r.URL.Query(), &params.Sort)
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sort", Err: err})
-		return
-	}
+	var params ListPaymentsParams
 
 	// ------------- Optional query parameter "status" -------------
 
@@ -168,8 +296,83 @@ func (siw *ServerInterfaceWrapper) GetDashboardV1Payments(w http.ResponseWriter,
 		return
 	}
 
+	// ------------- Optional query parameter "sort" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "sort", r.URL.Query(), &params.Sort)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sort", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "limit", r.URL.Query(), &params.Limit)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "offset" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "offset", r.URL.Query(), &params.Offset)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "offset", Err: err})
+		return
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetDashboardV1Payments(w, r, params)
+		siw.Handler.ListPayments(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetPaymentSummary operation middleware
+func (siw *ServerInterfaceWrapper) GetPaymentSummary(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetPaymentSummary(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ReviewPayment operation middleware
+func (siw *ServerInterfaceWrapper) ReviewPayment(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id PaymentId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ReviewPayment(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -293,10 +496,16 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	}
 
 	r.Group(func(r chi.Router) {
-		r.Post(options.BaseURL+"/dashboard/v1/auth/login", wrapper.PostDashboardV1AuthLogin)
+		r.Post(options.BaseURL+"/dashboard/v1/auth/login", wrapper.LoginUser)
 	})
 	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/dashboard/v1/payments", wrapper.GetDashboardV1Payments)
+		r.Get(options.BaseURL+"/dashboard/v1/payments", wrapper.ListPayments)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/dashboard/v1/payments/summary", wrapper.GetPaymentSummary)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/dashboard/v1/payments/{id}/review", wrapper.ReviewPayment)
 	})
 
 	return r
@@ -305,22 +514,43 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"H4sIAAAAAAAC/6RW227bRhD9lcW0DzFKi1KTh4BAgbq3IIUDGG3dPrhGteaOpE25l8wunaiG/r2YXUoi",
-	"TQo2kieJ3LmcM2dmuA9QO+OdRRsDVA/gJUmDESk9BUeRfxWGmrSP2lmo4EdnjDwPyLYRlWArsdLYqDAT",
-	"fOis8DJGJBsqsTyvCdnuHxmX4oUnXOlPYnm+FN8JjnsmltK41vKhdWJwLkN99reFAjTn/dAibaEAKw1C",
-	"lcEVEOoNGsko8ZM0vuGjXkooIG59so+k7Rp2u10BhME7GzCxvHRrbX/r3vCL2tmINjGX3je6lsy8fB+Y",
-	"/kMv49eEK6jgq/JYxDKfhvI6IOVkw+oRxpasiO5ftEJaJdqAJLRdOTIpD+wKuJJbgzZe6hA/C5gn55Gi",
-	"xk7UFC391xFNeAp7l56RdMWTRHILu+MLd/ce6zhFsHMWDJ4jXFvZxo0j/R+qn4kcPYNJJ2UC2iZ/tJGN",
-	"UCWirTGStlDBOx2CtmvhuIT3stEqVxYKuJdN21VNIVSv5osCDIYg14z/ehi1EuZUpETxeZpnehM1uTjm",
-	"0s6KldQNKk61z1oTKjaQTYBjvsT/ULOhqJlVr+sTwU4dbSOuuf96lPsD8nz24/Hh6fnQamIpbjKMY5bb",
-	"UYMcmnlMIc/9EJlsdI3fd8+z2pkxggJ64109QJ4cqEDJiOdRG5zy0WqYaDFlZJDqjXyM6V33VlxM+YQo",
-	"YxuGHtwbDfJyLIQnV2OubsH1zeJPFnZUurRERnVDI3XDf0ZYyDU4eZDFHJ9MDHQBAeuWdNz+zk2YU96h",
-	"JCRu4+PTL/u6//rXH/tFzJHy6ZHgJkafh4K3XAKhYy7s9o27lHZ94b24uHrLQ4sU8sgsZvPZnKE7j1Z6",
-	"DRW8nM1nL6EAL+MmoSqVDJs7J0mV94uSW7pseJmnkrmQZOTCpal7q3g5uRB/2jv9uWBCaf1D7moM8Qen",
-	"tl+wa09r42UIHx2paRX6M5Vj9DxuJ9fu0SVSi4+/at/O56fW1cGuHH76dgW8mi+e9hpv9NQ1h6WcooqP",
-	"Om5EoiK+EQcqbDmUrf91WuOEZm+wL9nV3rwYXFZupkEfTcp0X9gVj28zeXyFW4kOiHjx9PSenbqT5F3Q",
-	"/16MpH4MYJ9WqxNB08HpgLefI/zUBeML5e+WRpKivy5ubhlirzt0iL1yh+4Di3S/F7KlplsbVVk2rpbN",
-	"xoVYvZ6/nsPudvd/AAAA//+YrKvUtAoAAA==",
+	"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",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file
