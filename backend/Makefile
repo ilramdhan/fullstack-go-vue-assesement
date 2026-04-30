@@ -6,7 +6,7 @@ BIN_NAME    := mygolangapp
 
 .DEFAULT_GOAL := help
 
-.PHONY: help dep tool-openapi openapi-gen gen-secret run build clean
+.PHONY: help dep tool-openapi openapi-gen gen-secret seed seed-reset run build clean
 
 help:
 	@echo "Available targets:"
@@ -14,6 +14,8 @@ help:
 	@echo "  make tool-openapi - install oapi-codegen tool"
 	@echo "  make openapi-gen  - generate types + chi server from ../openapi.yaml"
 	@echo "  make gen-secret   - generate JWT_SECRET (helper)"
+	@echo "  make seed         - run migrations + seed demo data"
+	@echo "  make seed-reset   - delete the local sqlite db and re-seed"
 	@echo "  make run          - run the app locally (uses .env if present)"
 	@echo "  make build        - build binary into ./bin/$(BIN_NAME)"
 	@echo "  make clean        - remove build artifacts and local sqlite db"
@@ -30,6 +32,13 @@ openapi-gen: tool-openapi
 
 gen-secret:
 	@$(GO) run ./script/gen-secret/main.go
+
+seed:
+	@CGO_ENABLED=1 $(GO) run ./script/seed/main.go
+
+seed-reset:
+	@rm -f data/*.db data/*.db-*
+	@CGO_ENABLED=1 $(GO) run ./script/seed/main.go
 
 run:
 	@CGO_ENABLED=1 $(GO) run main.go
