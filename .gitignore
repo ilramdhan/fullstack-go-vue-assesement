@@ -1,0 +1,57 @@
+# ===== OS =====
+.DS_Store
+Thumbs.db
+
+# ===== IDE =====
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# ===== Local env =====
+.env
+.env.*
+!.env.sample
+!.env.example
+
+# ===== Local data / build artifacts =====
+data/*.db
+data/*.db-*
+*.sqlite
+*.sqlite3
+bin/
+dist/
+build/
+coverage/
+*.out
+*.log
+
+# ===== Frontend (Node) =====
+node_modules/
+.npm/
+.pnpm-store/
+.yarn/
+.cache/
+.vite/
+.nuxt/
+.output/
+.turbo/
+*.tsbuildinfo
+stats.html
+
+# ===== Backend (Go) =====
+vendor/
+tmp/
+
+# ===== AI / local working files (NOT for submission) =====
+CLAUDE.md
+.claude/
+.claudeignore
+PLAN.md
+MEMORY.md
+memory/
+docs/
+WALKTHROUGH.md
+.cursor/
+.cursorrules
+.github/copilot-instructions.md

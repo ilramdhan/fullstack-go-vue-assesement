@@ -1,0 +1,145 @@
+openapi: 3.0.3
+info:
+  title: MyGoLangApp API
+  version: "1.0.0"
+servers:
+  - url: http://localhost:8080
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  
+  parameters:
+    sort:
+      name: sort
+      in: query
+      description: >
+        Comma-separated sort fields. Common patterns:
+        `-created_at` (prefix `-` = desc)
+        `amount` (no prefix `-` = asc)
+      required: false
+      schema:
+        type: string
+        example: "-created_at"
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        code:
+          type: integer
+          example: 401
+        message:
+          type: string
+          example: "Unauthenticated: missing or invalid token"
+      required:
+        - code
+        - message
+    
+    User:
+      type: object
+      properties:
+        email:
+          type: string
+        role:
+          type: string
+        token:
+          type: string
+
+    Payment:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "1"
+        merchant:
+          type: string
+          example: "Merchant A"
+        status:
+          type: string
+          example: "completed , processing , or failed"
+        amount:
+          type: string
+          example: "alice@example.com"
+        created_at:
+          type: string
+          format: date-time
+
+  responses:
+    LoginResponse:
+      description: return token and user information
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/User'
+    PaymentListResponse:
+      description: Payment List
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              payments:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Payment'
+    UnauthorizedError:
+      description: Authentication failed or missing credentials
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            unauthenticated:
+              summary: Missing or invalid token
+              value:
+                code: 401
+                message: "Unauthenticated: missing or invalid token"
+
+paths:
+  /dashboard/v1/auth/login:
+    post:
+      summary: Login with email + password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+      responses:
+        "200":
+          $ref: '#/components/responses/LoginResponse'
+        "401":
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /dashboard/v1/payments:
+    get:
+      summary: List of payments
+      parameters:
+        - $ref: '#/components/parameters/sort'
+        - in: query
+          name: status
+          schema:
+            type: string
+          description: status of payment (completed , processing , or failed)
+        - in: query
+          name: id
+          schema:
+            type: string
+          description: payment id
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          $ref: '#/components/responses/PaymentListResponse'
+        "401":
+          $ref: '#/components/responses/UnauthorizedError'
+
