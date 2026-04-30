@@ -2,9 +2,7 @@ package config
 
 import (
 	"os"
-
-	_ "github.com/go-sql-driver/mysql"
-	_ "github.com/mattn/go-sqlite3"
+	"strings"
 )
 
 var (
@@ -12,6 +10,9 @@ var (
 	JwtExpired          = getEnv("JWT_EXPIRED", "24h")
 	HttpAddress         = getEnv("HTTP_ADDR", ":8080")
 	OpenapiYamlLocation = getEnv("OPENAPIYAML_LOCATION", "../openapi.yaml")
+	DatabasePath        = getEnv("DATABASE_PATH", "data/dashboard.db")
+	CorsAllowedOrigins  = splitCSV(getEnv("CORS_ALLOWED_ORIGINS",
+		"http://localhost:5173,http://localhost:4173,http://localhost:3000"))
 )
 
 func getEnv(key, fallback string) string {
@@ -19,4 +20,15 @@ func getEnv(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func splitCSV(s string) []string {
+	parts := strings.Split(s, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if p = strings.TrimSpace(p); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }
