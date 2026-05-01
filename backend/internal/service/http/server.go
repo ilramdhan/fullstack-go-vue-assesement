@@ -32,6 +32,8 @@ const (
 
 var publicAPIPaths = map[string]bool{
 	"/dashboard/v1/auth/login": true,
+	"/openapi.json":            true,
+	"/swagger":                 true,
 }
 
 func NewServer(apiHandler openapigen.ServerInterface, authUC authUsecase.AuthUsecase) *Server {
@@ -61,6 +63,9 @@ func NewServer(apiHandler openapigen.ServerInterface, authUC authUsecase.AuthUse
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"status":"ok"}`))
 	})
+
+	r.Get("/openapi.json", openapiJSONHandler())
+	r.Get("/swagger", swaggerUIHandler())
 
 	r.Group(func(api chi.Router) {
 		api.Use(oapinethttpmw.OapiRequestValidatorWithOptions(
