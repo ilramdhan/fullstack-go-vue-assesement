@@ -1,29 +1,19 @@
 <script setup lang="ts">
-import { useRouter } from 'vue-router'
-import { Button } from '@/components/ui/button'
-import { useAuthStore } from '@/stores/auth'
-
-const auth = useAuthStore()
-const router = useRouter()
-
-function logout() {
-  auth.clear()
-  void router.push({ name: 'login' })
-}
+import AppLayout from '@/components/AppLayout.vue'
+import SummaryWidget from './SummaryWidget.vue'
+import PaymentsTable from './PaymentsTable.vue'
 </script>
 
 <template>
-  <main class="min-h-screen bg-muted/30 p-8">
-    <header class="mb-8 flex items-center justify-between">
-      <div>
-        <h1 class="text-2xl font-semibold">Payment Dashboard</h1>
-        <p class="text-sm text-muted-foreground">
-          Signed in as <span class="font-medium text-foreground">{{ auth.email }}</span>
-          (role: {{ auth.role }})
-        </p>
-      </div>
-      <Button variant="outline" @click="logout">Sign out</Button>
-    </header>
-    <p class="text-sm text-muted-foreground">Dashboard content arrives in the next phase.</p>
-  </main>
+  <AppLayout>
+    <div class="mb-6">
+      <h2 class="text-2xl font-semibold tracking-tight">Payments</h2>
+      <p class="text-sm text-muted-foreground">
+        Monitor incoming payments. Operations can review processing transactions.
+      </p>
+    </div>
+
+    <SummaryWidget class="mb-6" />
+    <PaymentsTable />
+  </AppLayout>
 </template>
