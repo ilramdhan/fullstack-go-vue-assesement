@@ -28,6 +28,14 @@ coverage.html
 *.out
 *.log
 
+# Playwright MCP traces / screenshots produced during local verification
+.playwright-mcp/
+playwright-report/
+test-results/
+*.png
+!frontend/public/**/*.png
+!frontend/src/assets/**/*.png
+
 # ===== Frontend (Node) =====
 node_modules/
 .npm/

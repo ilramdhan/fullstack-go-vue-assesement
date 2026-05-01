@@ -4,6 +4,7 @@ import { VueQueryPlugin } from '@tanstack/vue-query'
 import App from './App.vue'
 import router from './router'
 import { queryClient } from './api/query-client'
+import './api/http'
 import './assets/index.css'
 
 createApp(App)
