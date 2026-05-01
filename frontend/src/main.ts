@@ -6,6 +6,7 @@ import router from './router'
 import { queryClient } from './api/query-client'
 import './api/http'
 import './assets/index.css'
+import 'vue-sonner/style.css'
 
 createApp(App)
   .use(createPinia())
