@@ -1,0 +1,13 @@
+node_modules/
+dist/
+coverage/
+.vite/
+.env
+.env.*
+!.env.example
+*.log
+.idea/
+.vscode/
+src/api/generated/
+Dockerfile
+.dockerignore

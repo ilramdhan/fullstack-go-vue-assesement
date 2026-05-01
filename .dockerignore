@@ -1,0 +1,41 @@
+# Repo-root .dockerignore — applies when build context is the repo root
+# (see docker-compose.yml).
+
+.git/
+.idea/
+.vscode/
+.claude/
+.playwright-mcp/
+
+# AI / local-only
+CLAUDE.md
+PLAN.md
+MEMORY.md
+docs/
+WALKTHROUGH.md
+
+# OS
+.DS_Store
+
+# Build artefacts (these get rebuilt inside containers)
+backend/bin/
+backend/data/
+backend/coverage*
+backend/.env
+backend/.env.*
+!backend/env.sample
+
+frontend/node_modules/
+frontend/dist/
+frontend/coverage/
+frontend/.vite/
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+frontend/src/api/generated/
+
+*.log
+*.out
+*.png
+!frontend/public/**/*.png
+!frontend/src/assets/**/*.png

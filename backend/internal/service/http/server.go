@@ -34,7 +34,7 @@ var publicAPIPaths = map[string]bool{
 	"/dashboard/v1/auth/login": true,
 }
 
-func NewServer(apiHandler openapigen.ServerInterface, authUC authUsecase.AuthUsecase, _ string) *Server {
+func NewServer(apiHandler openapigen.ServerInterface, authUC authUsecase.AuthUsecase) *Server {
 	swagger, err := openapigen.GetSwagger()
 	if err != nil {
 		log.Fatalf("failed to load swagger: %v", err)

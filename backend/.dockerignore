@@ -1,0 +1,15 @@
+.idea/
+.vscode/
+*.md
+!README.md
+.env
+.env.*
+!env.sample
+data/
+bin/
+coverage*
+*.test
+*.out
+*.log
+Dockerfile
+.dockerignore

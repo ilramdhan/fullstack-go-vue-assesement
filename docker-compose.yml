@@ -1,0 +1,49 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    image: payment-dashboard-backend:local
+    container_name: payment-dashboard-backend
+    environment:
+      HTTP_ADDR: ":8080"
+      DATABASE_PATH: /app/data/dashboard.db
+      JWT_SECRET: ${JWT_SECRET:-local-dev-secret-change-me}
+      JWT_EXPIRED: ${JWT_EXPIRED:-24h}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173,http://localhost:8088}
+    ports:
+      - "8080:8080"
+    volumes:
+      - backend-data:/app/data
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://127.0.0.1:8080/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        VITE_API_BASE_URL: /api
+    image: payment-dashboard-frontend:local
+    container_name: payment-dashboard-frontend
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "8088:80"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://127.0.0.1/"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 3s
+    restart: unless-stopped
+
+volumes:
+  backend-data:
+    name: payment-dashboard-data

@@ -63,7 +63,7 @@ INSERT INTO payments(id, merchant, amount, currency, status, created_at) VALUES
 		Auth:    authHandler.NewAuthHandler(auc),
 		Payment: paymentHandler.NewPaymentHandler(puc),
 	}
-	server := srv.NewServer(apiHandler, auc, "")
+	server := srv.NewServer(apiHandler, auc)
 	return server.Routes(), db
 }
 

@@ -53,7 +53,7 @@ func main() {
 		Payment: paymentH,
 	}
 
-	server := srv.NewServer(apiHandler, authUC, config.OpenapiYamlLocation)
+	server := srv.NewServer(apiHandler, authUC)
 	log.Printf("starting server on %s (db=%s)", config.HttpAddress, config.DatabasePath)
 	server.Start(config.HttpAddress)
 }
