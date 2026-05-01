@@ -12,8 +12,6 @@ import {
 
 export interface PaymentsFilter {
   status?: PaymentStatus | ''
-  id?: string
-  sort?: string
 }
 
 export const paymentKeys = {
@@ -30,8 +28,6 @@ export function usePayments(filter: MaybeRefOrGetter<PaymentsFilter>) {
       const { data, error } = await listPayments({
         query: {
           status: f.status || undefined,
-          id: f.id || undefined,
-          sort: f.sort || undefined,
         },
       })
       if (error || !data) throw error ?? new Error('failed to load payments')

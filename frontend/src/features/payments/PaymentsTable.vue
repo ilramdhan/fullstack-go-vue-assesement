@@ -1,6 +1,15 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
-import { ArrowDown, ArrowUp, ArrowUpDown, RefreshCw, Search } from 'lucide-vue-next'
+import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  Copy,
+  Download,
+  RefreshCw,
+  Search,
+  X,
+} from 'lucide-vue-next'
 import { useDebounceFn } from '@vueuse/core'
 import { toast } from 'vue-sonner'
 
@@ -16,38 +25,95 @@ import { apiErrorMessage } from '@/api/http'
 import { useAuthStore } from '@/stores/auth'
 
 import StatusBadge from './StatusBadge.vue'
-import { usePayments, useReviewPayment, type PaymentsFilter } from './queries'
+import { usePayments, useReviewPayment } from './queries'
+import { exportPaymentsToExcel } from './export'
 import type { Payment, PaymentStatus, ReviewDecision } from '@/api/generated'
+
+type SortField = 'created_at' | 'amount' | 'merchant' | 'status'
+type SortKey = SortField | `-${SortField}`
 
 const auth = useAuthStore()
 
-const filter = reactive<PaymentsFilter>({ status: '', id: '', sort: '-created_at' })
+const filter = reactive({
+  status: '' as PaymentStatus | '',
+  sort: '-created_at' as SortKey,
+  from: '',
+  to: '',
+})
 
-const searchInput = ref('')
-const setSearch = useDebounceFn((v: string) => {
-  filter.id = v.trim()
+const idInput = ref('')
+const merchantInput = ref('')
+const idQuery = ref('')
+const merchantQuery = ref('')
+
+const setIdQuery = useDebounceFn((v: string) => {
+  idQuery.value = v.trim()
   page.value = 1
-}, 300)
-watch(searchInput, (v) => setSearch(v))
+}, 250)
+const setMerchantQuery = useDebounceFn((v: string) => {
+  merchantQuery.value = v.trim()
+  page.value = 1
+}, 250)
+watch(idInput, (v) => setIdQuery(v))
+watch(merchantInput, (v) => setMerchantQuery(v))
 
 const { data, isLoading, isError, error, refetch, isFetching } = usePayments(() => ({
   status: filter.status,
-  id: filter.id,
-  sort: filter.sort,
 }))
 
 const review = useReviewPayment()
 
+const allRows = computed(() => data.value?.data ?? [])
+
+const filteredRows = computed(() => {
+  const id = idQuery.value.toLowerCase()
+  const merchant = merchantQuery.value.toLowerCase()
+  const fromTs = filter.from ? new Date(filter.from + 'T00:00:00').getTime() : null
+  const toTs = filter.to ? new Date(filter.to + 'T23:59:59.999').getTime() : null
+
+  return allRows.value.filter((p) => {
+    if (id && !p.id.toLowerCase().includes(id)) return false
+    if (merchant && !p.merchant.toLowerCase().includes(merchant)) return false
+    if (fromTs !== null || toTs !== null) {
+      const t = new Date(p.created_at).getTime()
+      if (fromTs !== null && t < fromTs) return false
+      if (toTs !== null && t > toTs) return false
+    }
+    return true
+  })
+})
+
+const sortedRows = computed(() => {
+  const sort = filter.sort
+  if (!sort) return filteredRows.value
+  const desc = sort.startsWith('-')
+  const field = (desc ? sort.slice(1) : sort) as SortField
+  const arr = [...filteredRows.value]
+  arr.sort((a, b) => {
+    let cmp = 0
+    if (field === 'amount') {
+      cmp = a.amount - b.amount
+    } else if (field === 'merchant') {
+      cmp = a.merchant.localeCompare(b.merchant)
+    } else if (field === 'status') {
+      cmp = a.status.localeCompare(b.status)
+    } else {
+      cmp = new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    }
+    return desc ? -cmp : cmp
+  })
+  return arr
+})
+
 const PAGE_SIZE = 10
 const page = ref(1)
-const rows = computed(() => data.value?.data ?? [])
-const totalPages = computed(() => Math.max(1, Math.ceil(rows.value.length / PAGE_SIZE)))
+const totalPages = computed(() => Math.max(1, Math.ceil(sortedRows.value.length / PAGE_SIZE)))
 const visibleRows = computed(() =>
-  rows.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE),
+  sortedRows.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE),
 )
 
-watch([() => filter.status, () => filter.sort], () => {
-  page.value = 1
+watch([() => filter.status, () => filter.from, () => filter.to, () => filter.sort], () => {
+  if (page.value > totalPages.value) page.value = 1
 })
 
 function setStatus(next: PaymentStatus | '') {
@@ -55,12 +121,13 @@ function setStatus(next: PaymentStatus | '') {
   page.value = 1
 }
 
-function toggleSort(field: 'created_at' | 'amount') {
-  const current = filter.sort
-  filter.sort = current === field ? `-${field}` : current === `-${field}` ? field : `-${field}`
+function toggleSort(field: SortField) {
+  if (filter.sort === field) filter.sort = `-${field}`
+  else if (filter.sort === `-${field}`) filter.sort = field
+  else filter.sort = `-${field}`
 }
 
-function sortIcon(field: 'created_at' | 'amount') {
+function sortIcon(field: SortField) {
   if (filter.sort === field) return ArrowUp
   if (filter.sort === `-${field}`) return ArrowDown
   return ArrowUpDown
@@ -72,6 +139,58 @@ const STATUS_OPTIONS: Array<{ label: string; value: PaymentStatus | '' }> = [
   { label: 'Processing', value: 'processing' },
   { label: 'Failed', value: 'failed' },
 ]
+
+const hasActiveFilters = computed(
+  () =>
+    !!filter.status ||
+    !!filter.from ||
+    !!filter.to ||
+    !!idQuery.value ||
+    !!merchantQuery.value,
+)
+
+function clearFilters() {
+  filter.status = ''
+  filter.from = ''
+  filter.to = ''
+  idInput.value = ''
+  merchantInput.value = ''
+  idQuery.value = ''
+  merchantQuery.value = ''
+  page.value = 1
+}
+
+const minSpin = ref(false)
+async function handleRefresh() {
+  minSpin.value = true
+  setTimeout(() => {
+    minSpin.value = false
+  }, 700)
+  await refetch()
+}
+const isRefreshing = computed(() => minSpin.value || isFetching.value)
+
+function handleExport() {
+  if (!sortedRows.value.length) {
+    toast.info('Nothing to export with the current filters')
+    return
+  }
+  try {
+    exportPaymentsToExcel(sortedRows.value)
+    toast.success(`Exported ${sortedRows.value.length} payment(s)`)
+  } catch (e) {
+    toast.error(apiErrorMessage(e, 'Could not generate the Excel file'))
+  }
+}
+
+async function copyId(id: string) {
+  try {
+    await navigator.clipboard.writeText(id)
+    toast.success('Payment ID copied')
+  } catch {
+    toast.error('Clipboard not available')
+  }
+}
 
 const pendingReview = ref<{ payment: Payment; decision: ReviewDecision } | null>(null)
 const dialogOpen = ref(false)
@@ -94,26 +213,55 @@ async function confirmReview() {
     pendingReview.value = null
   }
 }
+
+const totalCount = computed(() => sortedRows.value.length)
+const startIdx = computed(() => (totalCount.value === 0 ? 0 : (page.value - 1) * PAGE_SIZE + 1))
+const endIdx = computed(() => Math.min(page.value * PAGE_SIZE, totalCount.value))
 </script>
 
 <template>
   <Card>
     <CardContent class="p-0">
-      <div class="flex flex-col gap-4 border-b p-5 sm:flex-row sm:items-end sm:justify-between">
-        <div class="flex flex-1 flex-col gap-3 sm:flex-row sm:items-end">
-          <div class="space-y-1.5 sm:max-w-sm sm:flex-1">
-            <Label for="search-id">Search by payment ID</Label>
+      <div class="space-y-4 border-b p-5">
+        <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div class="space-y-1.5">
+            <Label for="search-id">Payment ID</Label>
             <div class="relative">
               <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 id="search-id"
-                v-model="searchInput"
-                placeholder="paste a uuid…"
+                v-model="idInput"
+                placeholder="paste full or partial id"
                 class="pl-9"
               />
             </div>
           </div>
 
+          <div class="space-y-1.5">
+            <Label for="search-merchant">Merchant</Label>
+            <div class="relative">
+              <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                id="search-merchant"
+                v-model="merchantInput"
+                placeholder="e.g. Tokopedia"
+                class="pl-9"
+              />
+            </div>
+          </div>
+
+          <div class="space-y-1.5">
+            <Label for="date-from">From</Label>
+            <Input id="date-from" v-model="filter.from" type="date" />
+          </div>
+
+          <div class="space-y-1.5">
+            <Label for="date-to">To</Label>
+            <Input id="date-to" v-model="filter.to" type="date" />
+          </div>
+        </div>
+
+        <div class="flex flex-wrap items-end justify-between gap-3">
           <div class="space-y-1.5">
             <Label>Status</Label>
             <div class="flex flex-wrap gap-1.5" role="group" aria-label="Filter by status">
@@ -129,12 +277,40 @@ async function confirmReview() {
               </Button>
             </div>
           </div>
-        </div>
 
-        <Button variant="outline" size="sm" :disabled="isFetching" @click="() => refetch()">
-          <RefreshCw class="h-4 w-4" :class="{ 'animate-spin': isFetching }" />
-          Refresh
-        </Button>
+          <div class="flex flex-wrap items-center gap-2">
+            <Button
+              v-if="hasActiveFilters"
+              variant="ghost"
+              size="sm"
+              type="button"
+              @click="clearFilters"
+            >
+              <X class="h-4 w-4" />
+              Clear filters
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              type="button"
+              :disabled="isRefreshing"
+              @click="handleRefresh"
+            >
+              <RefreshCw class="h-4 w-4" :class="{ 'animate-spin': isRefreshing }" />
+              Refresh
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              type="button"
+              :disabled="!sortedRows.length"
+              @click="handleExport"
+            >
+              <Download class="h-4 w-4" />
+              Export Excel
+            </Button>
+          </div>
+        </div>
       </div>
 
       <div class="overflow-x-auto">
@@ -142,7 +318,16 @@ async function confirmReview() {
           <thead class="bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
             <tr>
               <th scope="col" class="px-5 py-3 font-medium">Payment ID</th>
-              <th scope="col" class="px-5 py-3 font-medium">Merchant</th>
+              <th scope="col" class="px-5 py-3 font-medium">
+                <button
+                  type="button"
+                  class="inline-flex items-center gap-1 hover:text-foreground"
+                  @click="toggleSort('merchant')"
+                >
+                  Merchant
+                  <component :is="sortIcon('merchant')" class="h-3 w-3" />
+                </button>
+              </th>
               <th scope="col" class="px-5 py-3 font-medium">
                 <button
                   type="button"
@@ -163,7 +348,16 @@ async function confirmReview() {
                   <component :is="sortIcon('amount')" class="h-3 w-3" />
                 </button>
               </th>
-              <th scope="col" class="px-5 py-3 font-medium">Status</th>
+              <th scope="col" class="px-5 py-3 font-medium">
+                <button
+                  type="button"
+                  class="inline-flex items-center gap-1 hover:text-foreground"
+                  @click="toggleSort('status')"
+                >
+                  Status
+                  <component :is="sortIcon('status')" class="h-3 w-3" />
+                </button>
+              </th>
               <th v-if="auth.isOperation" scope="col" class="px-5 py-3 font-medium text-right">
                 Actions
               </th>
@@ -182,19 +376,32 @@ async function confirmReview() {
               <td :colspan="auth.isOperation ? 6 : 5" class="px-5 py-12 text-center">
                 <div class="space-y-2">
                   <p class="text-sm text-destructive">{{ apiErrorMessage(error) }}</p>
-                  <Button size="sm" variant="outline" @click="() => refetch()">Try again</Button>
+                  <Button size="sm" variant="outline" @click="handleRefresh">Try again</Button>
                 </div>
               </td>
             </tr>
 
-            <tr v-else-if="!rows.length">
+            <tr v-else-if="!sortedRows.length">
               <td :colspan="auth.isOperation ? 6 : 5" class="px-5 py-12 text-center text-sm text-muted-foreground">
-                No payments match the current filter.
+                <p>No payments match the current filters.</p>
+                <Button v-if="hasActiveFilters" variant="link" size="sm" class="mt-1" @click="clearFilters">
+                  Clear filters
+                </Button>
               </td>
             </tr>
 
             <tr v-for="p in visibleRows" v-else :key="p.id" class="hover:bg-muted/30">
-              <td class="px-5 py-3 font-mono text-xs" :title="p.id">{{ shortId(p.id) }}</td>
+              <td class="px-5 py-3 font-mono text-xs">
+                <button
+                  type="button"
+                  class="group inline-flex items-center gap-1.5 hover:text-foreground"
+                  :title="`${p.id} (click to copy)`"
+                  @click="copyId(p.id)"
+                >
+                  <span>{{ shortId(p.id) }}</span>
+                  <Copy class="h-3 w-3 opacity-0 transition-opacity group-hover:opacity-60" />
+                </button>
+              </td>
               <td class="px-5 py-3">{{ p.merchant }}</td>
               <td class="px-5 py-3 text-muted-foreground">{{ formatDate(p.created_at) }}</td>
               <td class="px-5 py-3 text-right font-medium tabular-nums">
@@ -232,18 +439,19 @@ async function confirmReview() {
       </div>
 
       <footer
-        v-if="rows.length"
+        v-if="sortedRows.length"
         class="flex flex-col gap-2 border-t px-5 py-3 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between"
       >
         <p>
           Showing
-          <span class="font-medium text-foreground">{{ (page - 1) * PAGE_SIZE + 1 }}</span>
+          <span class="font-medium text-foreground">{{ startIdx }}</span>
           –
-          <span class="font-medium text-foreground">
-            {{ Math.min(page * PAGE_SIZE, rows.length) }}
-          </span>
+          <span class="font-medium text-foreground">{{ endIdx }}</span>
           of
-          <span class="font-medium text-foreground">{{ data?.total ?? rows.length }}</span>
+          <span class="font-medium text-foreground">{{ totalCount }}</span>
+          <span v-if="totalCount !== allRows.length" class="text-muted-foreground">
+            (filtered from {{ allRows.length }})
+          </span>
         </p>
         <div class="flex items-center gap-2">
           <Button size="sm" variant="outline" :disabled="page === 1" @click="page--">
