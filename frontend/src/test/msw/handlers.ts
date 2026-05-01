@@ -2,7 +2,8 @@ import { http, HttpResponse } from 'msw'
 import { fixturePayments } from '../fixtures'
 import type { Payment, PaymentStatus } from '@/api/generated'
 
-const BASE = 'http://localhost:8080'
+// Use wildcard origin so handlers match regardless of VITE_API_BASE_URL.
+const BASE = '*'
 
 interface State {
   payments: Payment[]
